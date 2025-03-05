@@ -1,0 +1,12 @@
+#ifndef LLVM_LIB_TARGET_SARCH_TARGETINFO_SARCHTARGETINFO_H
+#define LLVM_LIB_TARGET_SARCH_TARGETINFO_SARCHTARGETINFO_H
+
+namespace llvm {
+
+class Target;
+
+Target &getTheSARCHTarget();
+
+} // end namespace llvm
+
+#endif // LLVM_LIB_TARGET_SARCH_TARGETINFO_SARCHTARGETINFO_H
