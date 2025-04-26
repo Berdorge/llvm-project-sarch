@@ -73,4 +73,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeSARCHTargetMC() {
                                           createSARCHMCSubtargetInfo);
   TargetRegistry::RegisterMCInstPrinter(TheSARCHTarget,
                                         createSARCHMCInstPrinter);
+  TargetRegistry::RegisterMCCodeEmitter(TheSARCHTarget,
+                                        createSARCHMCCodeEmitter);
+  TargetRegistry::RegisterMCAsmBackend(TheSARCHTarget, createSARCHAsmBackend);
 }
