@@ -1,21 +1,15 @@
 //===----------------------------------------------------------------------===//
-//  Describe SARCH instructions format
-//
 //  CPU INSTRUCTION FORMATS
 //
 //  FF FF FF FF
-//        ^^ ^^ - r3_imm - third reg or imm
-//      ^       - r2     - second reg
-//     ^        - r1     - first reg
+//        ^^ ^^ - r3_imm - third register or immediate
+//      ^       - r2     - second register
+//     ^        - r1     - first register
 //  ^^          - opcode - operation code
-//
 //===----------------------------------------------------------------------===//
 
 // Generic SARCH Format
-class SARCHInst<bits<8> op, dag outs, dag ins, string asmstr, list<dag> pattern>: Instruction
-{
-  // Inst and Size: for tablegen(... -gen-emitter) and
-  // tablegen(... -gen-disassembler) in CMakeLists.txt
+class SARCHInst<bits<8> op, dag outs, dag ins, string asmstr, list<dag> pattern>: Instruction {
   let Namespace = "SARCH";
   let DecoderNamespace = "SARCH";
   let Size = 4;
@@ -36,7 +30,6 @@ class SARCHInst<bits<8> op, dag outs, dag ins, string asmstr, list<dag> pattern>
   let InOperandList  = ins;
   let AsmString   = asmstr;
   let Pattern     = pattern;
-
 }
 
 // Pseudo instructions format

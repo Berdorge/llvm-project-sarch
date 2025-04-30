@@ -14,7 +14,10 @@ enum NodeType : unsigned {
   FIRST_NUMBER = ISD::BUILTIN_OP_END,
   RET,
   CALL,
-  BR_CC,
+  CMP,
+  CJMP,
+  WRAPPER,
+  SELECT_CC,
 };
 }
 
@@ -57,6 +60,13 @@ private:
                       bool IsVarArg,
                       const SmallVectorImpl<ISD::OutputArg> &ArgsFlags,
                       LLVMContext &Context, const Type *RetTy) const override;
+
+  virtual SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
+  SDValue LowerBRCC(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerConstant(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerFrameIndex(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerExternalSymbol(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerSELECTCC(SDValue Op, SelectionDAG &DAG) const;
 };
 } // namespace llvm
 

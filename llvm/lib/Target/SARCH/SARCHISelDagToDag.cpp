@@ -42,6 +42,8 @@ public:
 
   void Select(SDNode *N) override;
 
+  bool SelectAddr(SDValue Address, SDValue &Base);
+
 #include "SARCHGenDAGISel.inc"
 };
 
@@ -75,4 +77,9 @@ void SARCHDAGToDAGISel::Select(SDNode *Node) {
   }
   SDLoc DL(Node);
   SelectCode(Node);
+}
+
+bool SARCHDAGToDAGISel::SelectAddr(SDValue Address, SDValue &Base) {
+  Base = Address;
+  return true;
 }

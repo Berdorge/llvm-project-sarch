@@ -1,6 +1,8 @@
 #include "SARCHInstPrinter.h"
 #include "MCTargetDesc/SARCHInfo.h"
+#include "SARCH.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/CodeGen/ISDOpcodes.h"
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCInstrInfo.h"
@@ -43,4 +45,69 @@ void SARCHInstPrinter::printOperand(const MCInst *MI, int OpNo,
 
   assert(MO.isExpr() && "Unknown operand kind in printOperand");
   MO.getExpr()->print(O, &MAI);
+}
+
+void SARCHInstPrinter::printJumpOperand(const MCInst *MI, uint64_t Address,
+                                        unsigned OpNo, raw_ostream &O) {
+  const MCOperand &MO = MI->getOperand(OpNo);
+  if (!MO.isImm()) {
+    return printOperand(MI, OpNo, O);
+  }
+
+  if (PrintBranchImmAsAddress) {
+    uint32_t Target = Address + MO.getImm();
+    O << formatHex(static_cast<uint64_t>(Target));
+  } else {
+    O << MO.getImm();
+  }
+}
+
+void SARCHInstPrinter::printSrcMemOperand(const MCInst *MI, unsigned OpNo,
+                                          raw_ostream &O,
+                                          const char *Modifier) {
+  const MCOperand &Base = MI->getOperand(OpNo);
+
+  if (Base.getReg() != SARCH::FLAG) {
+    O << getRegisterName(Base.getReg());
+  }
+}
+
+void SARCHInstPrinter::printCCOperand(const MCInst *MI, unsigned OpNo,
+                                      raw_ostream &O) {
+  unsigned CC = MI->getOperand(OpNo).getImm();
+
+  switch (CC) {
+  default:
+    llvm_unreachable("Unsupported CC code");
+  case ISD::SETEQ:
+    O << "eq";
+    break;
+  case ISD::SETNE:
+    O << "ne";
+    break;
+  case ISD::SETLT:
+    O << "lt";
+    break;
+  case ISD::SETLE:
+    O << "le";
+    break;
+  case ISD::SETGT:
+    O << "gt";
+    break;
+  case ISD::SETGE:
+    O << "ge";
+    break;
+  case ISD::SETULT:
+    O << "b";
+    break;
+  case ISD::SETULE:
+    O << "be";
+    break;
+  case ISD::SETUGT:
+    O << "a";
+    break;
+  case ISD::SETUGE:
+    O << "ae";
+    break;
+  }
 }

@@ -42,12 +42,9 @@ SARCHTargetLowering::SARCHTargetLowering(const TargetMachine &TM,
 
   computeRegisterProperties(subtarget.getRegisterInfo());
 
-  setStackPointerRegisterToSaveRestore(SARCH::R4);
+  setStackPointerRegisterToSaveRestore(SARCH::RSP);
 
   // setSchedulingPreference(Sched::Source);
-
-  for (unsigned Opc = 0; Opc < ISD::BUILTIN_OP_END; ++Opc)
-    setOperationAction(Opc, MVT::i32, Expand);
 
   setOperationAction(ISD::ADD, MVT::i32, Legal);
   setOperationAction(ISD::MUL, MVT::i32, Legal);
@@ -55,9 +52,12 @@ SARCHTargetLowering::SARCHTargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::LOAD, MVT::i32, Legal);
   setOperationAction(ISD::STORE, MVT::i32, Legal);
 
-  setOperationAction(ISD::Constant, MVT::i32, Legal);
+  setOperationAction(ISD::FrameIndex, MVT::i32, Custom);
+  setOperationAction(ISD::ExternalSymbol, MVT::i32, Custom);
   setOperationAction(ISD::UNDEF, MVT::i32, Legal);
 
+  setOperationAction(ISD::SETCC, MVT::i32, Expand);
+  setOperationAction(ISD::SELECT_CC, MVT::i32, Custom);
   setOperationAction(ISD::BR_CC, MVT::i32, Custom);
 
   setOperationAction(ISD::FRAMEADDR, MVT::i32, Legal);
@@ -70,6 +70,14 @@ const char *SARCHTargetLowering::getTargetNodeName(unsigned Opcode) const {
     return "SARCHISD::CALL";
   case SARCHISD::RET:
     return "SARCHISD::RET";
+  case SARCHISD::CMP:
+    return "SARCHISD::CMP";
+  case SARCHISD::CJMP:
+    return "SARCHISD::CJMP";
+  case SARCHISD::WRAPPER:
+    return "SARCHISD::WRAPPER";
+  case SARCHISD::SELECT_CC:
+    return "SARCHISD::SELECT_CC";
   }
   return nullptr;
 }
@@ -90,7 +98,7 @@ static Align getPrefTypeAlign(EVT VT, SelectionDAG &DAG) {
 }
 
 SDValue SARCHTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
-                                     SmallVectorImpl<SDValue> &InVals) const {
+                                       SmallVectorImpl<SDValue> &InVals) const {
   SARCH_DUMP_RED
   SelectionDAG &DAG = CLI.DAG;
   SDLoc &DL = CLI.DL;
@@ -526,10 +534,10 @@ bool SARCHTargetLowering::CanLowerReturn(
 
 SDValue
 SARCHTargetLowering::LowerReturn(SDValue Chain, CallingConv::ID CallConv,
-                               bool IsVarArg,
-                               const SmallVectorImpl<ISD::OutputArg> &Outs,
-                               const SmallVectorImpl<SDValue> &OutVals,
-                               const SDLoc &DL, SelectionDAG &DAG) const {
+                                 bool IsVarArg,
+                                 const SmallVectorImpl<ISD::OutputArg> &Outs,
+                                 const SmallVectorImpl<SDValue> &OutVals,
+                                 const SDLoc &DL, SelectionDAG &DAG) const {
   SARCH_DUMP_RED
   const MachineFunction &MF = DAG.getMachineFunction();
   const SARCHSubtarget &subtarget = MF.getSubtarget<SARCHSubtarget>();
@@ -573,7 +581,7 @@ SARCHTargetLowering::LowerReturn(SDValue Chain, CallingConv::ID CallConv,
 //===----------------------------------------------------------------------===//
 
 SDValue SARCHTargetLowering::PerformDAGCombine(SDNode *N,
-                                             DAGCombinerInfo &DCI) const {
+                                               DAGCombinerInfo &DCI) const {
   return {};
 }
 
@@ -584,9 +592,9 @@ SDValue SARCHTargetLowering::PerformDAGCombine(SDNode *N,
 /// Return true if the addressing mode represented by AM is legal for this
 /// target, for a load/store of the specified type.
 bool SARCHTargetLowering::isLegalAddressingMode(const DataLayout &DL,
-                                              const AddrMode &AM, Type *Ty,
-                                              unsigned AS,
-                                              Instruction *I) const {
+                                                const AddrMode &AM, Type *Ty,
+                                                unsigned AS,
+                                                Instruction *I) const {
   SARCH_DUMP_RED
   // No global is ever allowed as a base.
   if (AM.BaseGV)
@@ -607,4 +615,104 @@ bool SARCHTargetLowering::isLegalAddressingMode(const DataLayout &DL,
   }
 
   return true;
+}
+
+SDValue SARCHTargetLowering::LowerOperation(SDValue Op,
+                                            SelectionDAG &DAG) const {
+  if (Op.getOpcode() == ISD::BR_CC) {
+    return LowerBRCC(Op, DAG);
+  }
+  if (Op.getOpcode() == ISD::Constant) {
+    return LowerConstant(Op, DAG);
+  }
+  if (Op.getOpcode() == ISD::FrameIndex) {
+    return LowerFrameIndex(Op, DAG);
+  }
+  if (Op.getOpcode() == ISD::ExternalSymbol) {
+    return LowerExternalSymbol(Op, DAG);
+  }
+  if (Op.getOpcode() == ISD::SELECT_CC) {
+    return LowerSELECTCC(Op, DAG);
+  }
+  report_fatal_error("Unexpected node to lower");
+}
+
+static SDValue EmitCMP(SDValue &LHS, SDValue &RHS, ISD::CondCode CC,
+                       const SDLoc &dl, SelectionDAG &DAG) {
+  return DAG.getNode(SARCHISD::CMP, dl, MVT::Glue, LHS, RHS,
+                     DAG.getConstant(CC, dl, MVT::i32));
+}
+
+SDValue SARCHTargetLowering::LowerBRCC(SDValue Op, SelectionDAG &DAG) const {
+  SDValue Chain = Op.getOperand(0);
+  ISD::CondCode CC = cast<CondCodeSDNode>(Op.getOperand(1))->get();
+  SDValue LHS = Op.getOperand(2);
+  SDValue RHS = Op.getOperand(3);
+  SDValue Dest = Op.getOperand(4);
+  SDLoc dl(Op);
+
+  SDValue Flag = EmitCMP(LHS, RHS, CC, dl, DAG);
+
+  return DAG.getNode(SARCHISD::CJMP, dl, MVT::Other, Chain, Dest, Flag);
+}
+
+SDValue SARCHTargetLowering::LowerConstant(SDValue Op,
+                                           SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+  const ConstantSDNode *CN = cast<ConstantSDNode>(Op);
+  uint32_t Val = CN->getSExtValue();
+
+  if (isUInt<16>(Val)) {
+    return Op;
+  }
+
+  SDValue Hi16 = DAG.getConstant((Val >> 16) & 0xFFFF, DL, MVT::i32);
+  SDValue Lo16 = DAG.getConstant(Val & 0xFFFF, DL, MVT::i32);
+
+  SDValue ShiftedHi = DAG.getNode(ISD::SHL, DL, MVT::i32, Hi16,
+                                  DAG.getConstant(16, DL, MVT::i32));
+  return DAG.getNode(ISD::OR, DL, MVT::i32, ShiftedHi, Lo16);
+}
+
+SDValue SARCHTargetLowering::LowerFrameIndex(SDValue Op,
+                                             SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+  FrameIndexSDNode *FIN = cast<FrameIndexSDNode>(Op);
+  int FrameIdx = FIN->getIndex();
+  MachineFunction &MF = DAG.getMachineFunction();
+
+  const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
+  unsigned FrameReg = TRI->getFrameRegister(MF);
+
+  if (MF.getFrameInfo().getObjectOffset(FrameIdx) == 0) {
+    return DAG.getCopyFromReg(DAG.getEntryNode(), DL, FrameReg,
+                              Op.getValueType());
+  }
+
+  report_fatal_error("Only 0 is allowed as frame index!");
+}
+
+SDValue SARCHTargetLowering::LowerExternalSymbol(SDValue Op,
+                                                 SelectionDAG &DAG) const {
+  SDLoc dl(Op);
+  const char *Sym = cast<ExternalSymbolSDNode>(Op)->getSymbol();
+  EVT PtrVT = Op.getValueType();
+  SDValue Result = DAG.getTargetExternalSymbol(Sym, PtrVT);
+
+  return DAG.getNode(SARCHISD::WRAPPER, dl, PtrVT, Result);
+}
+
+SDValue SARCHTargetLowering::LowerSELECTCC(SDValue Op,
+                                           SelectionDAG &DAG) const {
+  SDValue LHS = Op.getOperand(0);
+  SDValue RHS = Op.getOperand(1);
+  SDValue TrueV = Op.getOperand(2);
+  SDValue FalseV = Op.getOperand(3);
+  ISD::CondCode CC = cast<CondCodeSDNode>(Op.getOperand(4))->get();
+  SDLoc dl(Op);
+
+  SDValue Flag = EmitCMP(LHS, RHS, CC, dl, DAG);
+
+  return DAG.getNode(SARCHISD::SELECT_CC, dl, Op.getValueType(), TrueV, FalseV,
+                     Flag);
 }

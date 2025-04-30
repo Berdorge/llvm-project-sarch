@@ -1,3 +1,4 @@
+#include "MCTargetDesc/SARCHFixupKinds.h"
 #include "MCTargetDesc/SARCHMCTargetDesc.h"
 #include "SARCH.h"
 #include "llvm/ADT/SmallVector.h"
@@ -55,8 +56,17 @@ public:
                              SmallVectorImpl<MCFixup> &Fixups,
                              const MCSubtargetInfo &STI) const;
   unsigned getSImm16OpValue(const MCInst &MI, unsigned OpNo,
-                              SmallVectorImpl<MCFixup> &Fixups,
-                              const MCSubtargetInfo &STI) const;
+                            SmallVectorImpl<MCFixup> &Fixups,
+                            const MCSubtargetInfo &STI) const;
+  unsigned getJumpTarget16OpValue(const MCInst &MI, unsigned OpNo,
+                                  SmallVectorImpl<MCFixup> &Fixups,
+                                  const MCSubtargetInfo &STI) const;
+  unsigned getMemOpValue(const MCInst &MI, unsigned OpNo,
+                         SmallVectorImpl<MCFixup> &Fixups,
+                         const MCSubtargetInfo &STI) const;
+  unsigned getCCOpValue(const MCInst &MI, unsigned OpNo,
+                        SmallVectorImpl<MCFixup> &Fixups,
+                        const MCSubtargetInfo &STI) const;
 };
 
 } // end anonymous namespace
@@ -96,12 +106,17 @@ SARCHMCCodeEmitter::getMachineOpValue(const MCInst &MI, const MCOperand &MO,
 
 unsigned
 SARCHMCCodeEmitter::getSImm16OpValue(const MCInst &MI, unsigned OpNo,
-                                       SmallVectorImpl<MCFixup> &Fixups,
-                                       const MCSubtargetInfo &STI) const {
+                                     SmallVectorImpl<MCFixup> &Fixups,
+                                     const MCSubtargetInfo &STI) const {
   const MCOperand &MO = MI.getOperand(OpNo);
   if (MO.isImm()) {
     return MO.getImm();
   }
+
+  llvm::errs().changeColor(llvm::raw_ostream::RED);
+  MI.print(llvm::errs());
+  llvm::errs() << ", is expr? " << MO.isExpr() << "\n";
+  llvm::errs().changeColor(llvm::raw_ostream::WHITE);
 
   assert(MO.isExpr() &&
          "getSImm16OpValue expects only expressions or an immediate");
@@ -115,9 +130,45 @@ SARCHMCCodeEmitter::getSImm16OpValue(const MCInst &MI, unsigned OpNo,
   return 0;
 }
 
+unsigned
+SARCHMCCodeEmitter::getJumpTarget16OpValue(const MCInst &MI, unsigned OpNo,
+                                           SmallVectorImpl<MCFixup> &Fixups,
+                                           const MCSubtargetInfo &STI) const {
+  const MCOperand &MO = MI.getOperand(OpNo);
+
+  if (MO.isImm()) {
+    return MO.getImm() / 4;
+  }
+
+  assert(MO.isExpr() &&
+         "getJumpTarget16OpValue expects only expressions or immediates");
+
+  Fixups.push_back(
+      MCFixup::create(0, MO.getExpr(), MCFixupKind(SARCH::fixup_SARCH_PC16)));
+  return 0;
+}
+
+unsigned SARCHMCCodeEmitter::getMemOpValue(const MCInst &MI, unsigned OpNo,
+                                           SmallVectorImpl<MCFixup> &Fixups,
+                                           const MCSubtargetInfo &STI) const {
+  const MCOperand &MO1 = MI.getOperand(OpNo);
+  assert(MO1.isReg() && "Register operand expected");
+  unsigned Reg = Ctx.getRegisterInfo()->getEncodingValue(MO1.getReg());
+
+  return Reg;
+}
+
 #include "SARCHGenMCCodeEmitter.inc"
 
 MCCodeEmitter *llvm::createSARCHMCCodeEmitter(const MCInstrInfo &MCII,
                                               MCContext &Ctx) {
   return new SARCHMCCodeEmitter(MCII, Ctx);
+}
+
+unsigned SARCHMCCodeEmitter::getCCOpValue(const MCInst &MI, unsigned OpNo,
+                                          SmallVectorImpl<MCFixup> &Fixups,
+                                          const MCSubtargetInfo &STI) const {
+  const MCOperand &MO = MI.getOperand(OpNo);
+  assert(MO.isImm() && "Immediate operand expected");
+  return MO.getImm();
 }

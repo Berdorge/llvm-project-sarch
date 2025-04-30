@@ -17,12 +17,14 @@ public:
     SARCH_DUMP_GREEN
   }
 
-  void emitPrologue(MachineFunction &MF,
-                    MachineBasicBlock &MBB) const override {}
-  void emitEpilogue(MachineFunction &MF,
-                    MachineBasicBlock &MBB) const override {}
+  void emitPrologue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
+  void emitEpilogue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
 
-  bool hasFPImpl(const MachineFunction &MF) const override { return false; }
+  MachineBasicBlock::iterator
+  eliminateCallFramePseudoInstr(MachineFunction &MF, MachineBasicBlock &MBB,
+                                MachineBasicBlock::iterator I) const override;
+
+  bool hasFPImpl(const MachineFunction &MF) const override;
 };
 } // namespace llvm
 

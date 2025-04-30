@@ -5,12 +5,12 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
 
-#define SARCH_DUMP(Color)                                                      \
-  {                                                                            \
-    llvm::errs().changeColor(Color)                                            \
-        << __func__ << "\n\t\t" << __FILE__ << ":" << __LINE__ << "\n";        \
-    llvm::errs().changeColor(llvm::raw_ostream::WHITE);                        \
-  }
+ #define SARCH_DUMP(Color)                                                      \
+   {                                                                            \
+     llvm::errs().changeColor(Color)                                            \
+         << __func__ << "\n\t\t" << __FILE__ << ":" << __LINE__ << "\n";        \
+     llvm::errs().changeColor(llvm::raw_ostream::WHITE);                        \
+   }
 
 #define SARCH_DUMP_RED SARCH_DUMP(llvm::raw_ostream::RED)
 #define SARCH_DUMP_GREEN SARCH_DUMP(llvm::raw_ostream::GREEN)

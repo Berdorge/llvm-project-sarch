@@ -23,10 +23,10 @@ BitVector SARCHRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   SARCHFrameLowering const *TFI = getFrameLowering(MF);
 
   BitVector Reserved(getNumRegs());
-  Reserved.set(SARCH::R1);
+  Reserved.set(SARCH::RSP);
 
   if (TFI->hasFP(MF)) {
-    Reserved.set(SARCH::R2);
+    Reserved.set(SARCH::R1);
   }
   return Reserved;
 }
@@ -43,29 +43,38 @@ bool SARCHRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   assert(SPAdj == 0 && "Unexpected non-zero SPAdj value");
 
   MachineInstr &MI = *II;
+  MachineBasicBlock &MBB = *MI.getParent();
   MachineFunction &MF = *MI.getParent()->getParent();
   DebugLoc DL = MI.getDebugLoc();
+  const TargetInstrInfo *TII = MF.getSubtarget().getInstrInfo();
 
   int FrameIndex = MI.getOperand(FIOperandNum).getIndex();
   Register FrameReg;
   int Offset = getFrameLowering(MF)
                    ->getFrameIndexReference(MF, FrameIndex, FrameReg)
                    .getFixed();
-  Offset += MI.getOperand(FIOperandNum + 1).getImm();
 
   if (!isInt<16>(Offset)) {
     llvm_unreachable("");
   }
 
   MI.getOperand(FIOperandNum).ChangeToRegister(FrameReg, false, false, false);
-  MI.getOperand(FIOperandNum + 1).ChangeToImmediate(Offset);
+
+  BuildMI(MBB, II, DL, TII->get(SARCH::ADD_IMM), FrameReg)
+      .addReg(FrameReg)
+      .addImm(Offset);
+
+  BuildMI(MBB, std::next(II), DL, TII->get(SARCH::SUB_IMM), FrameReg)
+      .addReg(FrameReg)
+      .addImm(Offset);
+
   return false;
 }
 
 Register SARCHRegisterInfo::getFrameRegister(const MachineFunction &MF) const {
   SARCH_DUMP_GREEN
-  const TargetFrameLowering *TFI = getFrameLowering(MF);
-  return TFI->hasFP(MF) ? SARCH::R2 : SARCH::R1;
+  const SARCHFrameLowering *TFI = getFrameLowering(MF);
+  return TFI->hasFP(MF) ? SARCH::R1 : SARCH::RSP;
 }
 
 const uint32_t *

@@ -22,6 +22,7 @@ add_llvm_target(SARCHCodeGen
   SARCHISelDagToDag.cpp
   SARCHISelLowering.cpp
   SARCHMCInstLower.cpp
+  SARCHFrameLowering.cpp
 
   LINK_COMPONENTS
   CodeGen
